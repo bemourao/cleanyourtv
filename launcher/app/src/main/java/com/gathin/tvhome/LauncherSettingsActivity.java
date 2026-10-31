@@ -39,6 +39,11 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView advancedChoice;
     private TextView followThemeChoice;
     private TextView openOnStartChoice;
+    private TextView screensaverChoice;
+    private TextView sleepChoice;
+    /** Minutes offered for the screen saver (Android's screen_off_timeout) and for turning the box off (sleep_timeout; 0 = never). */
+    private static final int[] SAVER_MINUTES = {1, 2, 3, 5, 10, 15, 30};
+    private static final int[] SLEEP_MINUTES = {15, 30, 60, 90, 120, 180, 240, 0};
     private int columns;
     private int rowsBelowDock;
     private int dockOpacity;
@@ -152,6 +157,10 @@ public final class LauncherSettingsActivity extends Activity {
             openOnStartChoice.setVisibility(View.VISIBLE);
             openOnStartChoice.setOnClickListener(v -> showOpenOnStartPicker());
         }
+        screensaverChoice = findViewById(R.id.screensaverChoice);
+        screensaverChoice.setOnClickListener(v -> showTimerPicker(false));
+        sleepChoice = findViewById(R.id.sleepChoice);
+        sleepChoice.setOnClickListener(v -> showTimerPicker(true));
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
@@ -319,6 +328,8 @@ public final class LauncherSettingsActivity extends Activity {
                         : wallpaperCurrent != null ? wallpaperCurrent
                         : getString(R.string.wallpaper_theme_default)));
         openOnStartChoice.setText(getString(R.string.open_on_start_state, openOnStartLabel()));
+        screensaverChoice.setText(getString(R.string.screensaver_state, minutesLabel(savedMinutes(false))));
+        sleepChoice.setText(getString(R.string.sleep_state, minutesLabel(savedMinutes(true))));
         followThemeChoice.setSelected(!hasOnTvChoices());
     }
 
@@ -327,6 +338,52 @@ public final class LauncherSettingsActivity extends Activity {
                 || choices.contains("animations") || choices.contains("advanced_effects")
                 || choices.contains(Config.WALLPAPER_CHOICE_KEY) || choices.contains(Config.DOCK_OPACITY_KEY)
                 || choices.contains(Config.CLOCK_FORMAT_KEY) || choices.contains(OpenOnStart.KEY);
+    }
+
+    private int savedMinutes(boolean sleep) {
+        try {
+            if (sleep) return Settings.Secure.getInt(getContentResolver(), "sleep_timeout", 0) / 60000;
+            return Math.round(Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, 900000) / 60000f);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private String minutesLabel(int minutes) {
+        if (minutes <= 0) return getString(R.string.never);
+        if (minutes >= 60 && minutes % 60 == 0) return getString(R.string.hours_fmt, minutes / 60);
+        return getString(R.string.minutes_fmt, minutes);
+    }
+
+    /**
+     * The delay before Android's own screen saver starts (the Google Photos ambient album, set up in the TV's
+     * Screen saver page) or before the box goes to sleep. These are the system's settings, so the TV and this
+     * page always agree. Writing them needs a one-time grant over ADB (appops WRITE_SETTINGS, WRITE_SECURE_SETTINGS).
+     */
+    private void showTimerPicker(boolean sleep) {
+        int[] options = sleep ? SLEEP_MINUTES : SAVER_MINUTES;
+        String[] labels = new String[options.length];
+        int current = savedMinutes(sleep);
+        int checked = -1;
+        for (int i = 0; i < options.length; i++) {
+            labels[i] = minutesLabel(options[i]);
+            if (options[i] == current) checked = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(sleep ? R.string.sleep_title : R.string.screensaver_title)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    try {
+                        int ms = options[which] * 60000;
+                        if (sleep) Settings.Secure.putInt(getContentResolver(), "sleep_timeout", ms);
+                        else Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, ms);
+                    } catch (RuntimeException e) {
+                        Toast.makeText(this, R.string.timer_needs_permission, Toast.LENGTH_LONG).show();
+                    }
+                    refresh();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private void open(Intent intent) {

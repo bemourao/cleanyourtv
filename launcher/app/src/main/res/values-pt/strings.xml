@@ -123,6 +123,14 @@
     <string name="quick_apps_hint">Reativar</string>
     <string name="on">Ativado</string>
     <string name="off">Desativado</string>
+    <string name="screensaver_state">Protetor de tela após: %1$s</string>
+    <string name="sleep_state">Desligar o aparelho após: %1$s</string>
+    <string name="screensaver_title">Protetor de tela após</string>
+    <string name="sleep_title">Desligar o aparelho após</string>
+    <string name="minutes_fmt">%1$d min</string>
+    <string name="hours_fmt">%1$d h</string>
+    <string name="never">Nunca</string>
+    <string name="timer_needs_permission">Precisa de uma permissão única via ADB</string>
     <string name="enable">Ativar</string>
     <string name="race_kicker">Etapa %1$d · %2$s · %3$s</string>
     <string name="race_kicker_no_place">Etapa %1$d · %2$s</string>

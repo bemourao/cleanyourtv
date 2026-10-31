@@ -73,6 +73,14 @@
     <string name="quick_apps_hint">Re-enable</string>
     <string name="on">On</string>
     <string name="off">Off</string>
+    <string name="screensaver_state">Screen saver after: %1$s</string>
+    <string name="sleep_state">Turn the box off after: %1$s</string>
+    <string name="screensaver_title">Screen saver after</string>
+    <string name="sleep_title">Turn the box off after</string>
+    <string name="minutes_fmt">%1$d min</string>
+    <string name="hours_fmt">%1$d h</string>
+    <string name="never">Never</string>
+    <string name="timer_needs_permission">Needs a one-time permission over ADB</string>
     <string name="enable">Enable</string>
     <string name="input_key_service_description">Opens the input switcher when the remote\'s Input button is pressed.</string>
     <string name="home_key_name">Home button</string>
