@@ -63,10 +63,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onLibraryUp();
         /** A tile whose launch_actions entry is "input:<id>": switch to that TV input instead of opening an app. */
         void onOpenInput(String inputId);
+        /** A group tile was opened: the activity lists the group's apps. */
+        void onGroupRequested(String name);
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3;
+        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3, GROUP = 4;
 
         final int kind;
         final String label;
@@ -221,6 +223,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** Packages drawn from their icon and name even when they have a banner (config.xml icon_tiles). */
     private final Set<String> iconTiles;
     private final List<Entry> items = new ArrayList<>();
+    /** The apps inside each group at the last reload(), by group name (Groups). */
+    private Map<String, List<Entry>> groupMembers = new java.util.LinkedHashMap<>();
 
     AppAdapter(Context ctx, TileListener listener, int dockSize, Config cfg) {
         this.ctx = ctx;
@@ -283,6 +287,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // Some system apps declare two leanback entry points under one name (Sony's Timers & Clock on the
         // BRAVIA VU31), which would show as two identical tiles: keep the first per package and label.
         Set<String> seen = new HashSet<>();
+        Map<String, List<String>> groupData = Groups.load(ctx);
+        Map<String, String> groupOf = Groups.owners(groupData);
+        Map<String, List<Entry>> members = new java.util.LinkedHashMap<>();
+        for (String g : groupData.keySet()) members.put(g, new ArrayList<>());
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName;
@@ -308,10 +316,17 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
             if (card != null) {
                 fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent));
+            } else if (groupOf.containsKey(pkg)) {
+                members.get(groupOf.get(pkg)).add(new Entry(label, component, banner, icon != null ? icon : ri.loadIcon(pm)));
             } else {
                 fresh.add(new Entry(label, component, banner, icon));
             }
         }
+        for (Map.Entry<String, List<Entry>> g : members.entrySet()) {
+            fresh.add(new Entry(Entry.GROUP, g.getKey(), new ComponentName(ctx.getPackageName(), "group:" + g.getKey()),
+                    groupBanner(g.getValue()), null, null, 0));
+        }
+        groupMembers = members;
         Collections.sort(fresh, (a, b) -> {
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
             int saved = Order.compare(savedRanks, a.component.flattenToShortString(), b.component.flattenToShortString());
@@ -325,6 +340,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // Cards come right after the configured dock apps, before the alphabetical grid.
             boolean ca = a.kind == Entry.CARD, cb = b.kind == Entry.CARD;
             if (ca != cb) return ca ? -1 : 1;
+            boolean ga = a.kind == Entry.GROUP, gb = b.kind == Entry.GROUP;
+            if (ga != gb) return ga ? -1 : 1;
             return a.label.compareToIgnoreCase(b.label);
         });
         // Retain the optional Default-home tile until dependent tile-ordering work is merged.
@@ -560,6 +577,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     @SuppressWarnings("deprecation")
     private void launch(Entry e) {
+        if (e.kind == Entry.GROUP) {
+            listener.onGroupRequested(e.label);
+            return;
+        }
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -592,6 +613,43 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         } catch (Exception ex) {
             Toast.makeText(ctx, ctx.getString(R.string.cant_open, e.label), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** Opens one app of a group, as its tile on Home would. */
+    void open(Entry e) {
+        launch(e);
+    }
+
+    List<Entry> membersOf(String group) {
+        List<Entry> list = groupMembers.get(group);
+        return list == null ? Collections.<Entry>emptyList() : list;
+    }
+
+    boolean isGroupAt(int position) {
+        return position >= 0 && position < items.size() && items.get(position).kind == Entry.GROUP;
+    }
+
+    String groupNameAt(int position) {
+        return isGroupAt(position) ? items.get(position).label : null;
+    }
+
+    /** A group's tile art: up to four of its apps' icons on a dark card, two by two. */
+    private Drawable groupBanner(List<Entry> apps) {
+        int w = 320, h = 180, side = 64, gap = 12;
+        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        canvas.drawColor(0xFF1B2A3A);
+        int left = (w - (side * 2 + gap)) / 2, top = (h - (side * 2 + gap)) / 2;
+        for (int i = 0; i < 4 && i < apps.size(); i++) {
+            Drawable icon = apps.get(i).icon;
+            if (icon == null) continue;
+            Drawable.ConstantState state = icon.getConstantState();
+            Drawable copy = state == null ? icon : state.newDrawable().mutate();
+            int x = left + (i % 2) * (side + gap), y = top + (i / 2) * (side + gap);
+            copy.setBounds(x, y, x + side, y + side);
+            copy.draw(canvas);
+        }
+        return new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
     }
 
     @Override

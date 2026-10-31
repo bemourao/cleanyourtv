@@ -137,6 +137,13 @@
     <string name="color_green">Verde</string>
     <string name="color_pink">Rosa</string>
     <string name="color_violet">Violeta</string>
+    <string name="group_add">Adicionar a um grupo...</string>
+    <string name="group_new">Novo grupo...</string>
+    <string name="group_name_hint">Nome do grupo</string>
+    <string name="group_create">Criar</string>
+    <string name="group_delete">Excluir grupo</string>
+    <string name="group_take_out">Tirar um app do grupo...</string>
+    <string name="group_empty">Nenhum app neste grupo ainda. Segure OK em um app e escolha Adicionar a um grupo.</string>
     <string name="minutes_fmt">%1$d min</string>
     <string name="hours_fmt">%1$d h</string>
     <string name="never">Nunca</string>

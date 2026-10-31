@@ -87,6 +87,13 @@
     <string name="color_green">Green</string>
     <string name="color_pink">Pink</string>
     <string name="color_violet">Violet</string>
+    <string name="group_add">Add to a group...</string>
+    <string name="group_new">New group...</string>
+    <string name="group_name_hint">Group name</string>
+    <string name="group_create">Create</string>
+    <string name="group_delete">Delete group</string>
+    <string name="group_take_out">Take an app out...</string>
+    <string name="group_empty">This group has no apps yet. Hold OK on an app and choose Add to a group.</string>
     <string name="minutes_fmt">%1$d min</string>
     <string name="hours_fmt">%1$d h</string>
     <string name="never">Never</string>

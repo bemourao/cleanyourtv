@@ -3738,12 +3738,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (reordering || openPopup != null) return;
         String key = adapter.keyAt(position);
         String pkg = adapter.packageAt(position);
-        // Empty dock slots and the Default-home tile carry the launcher's own package: no menu for them.
-        if (key == null || pkg == null || pkg.equals(getPackageName())) return;
+        final boolean group = adapter.isGroupAt(position);
+        // Empty dock slots and the Default-home tile carry the launcher's own package: no menu for them (a group tile does).
+        if (key == null || pkg == null || (!group && pkg.equals(getPackageName()))) return;
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
-        if (dockRow && position < adapter.movableCount()) {
+        if (!group && dockRow && position < adapter.movableCount()) {
             boolean inDock = position < COLUMNS;
             addSettingsMenuRow(rows, popup, inDock ? R.string.tile_replace_in_dock : R.string.tile_add_to_dock,
                     () -> startDockEditFor(key, inDock));
@@ -3756,12 +3757,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             pickUp(at);
             Toast.makeText(this, R.string.reorder_hint, Toast.LENGTH_LONG).show();
         });
-        if (appLibraryEnabled) addSettingsMenuRow(rows, popup, R.string.library_remove_shortcut, () -> {
+        if (!group && appLibraryEnabled) addSettingsMenuRow(rows, popup, R.string.library_remove_shortcut, () -> {
             if (LibraryApps.save(this, pkg, false)) reloadApps(false);
             else Toast.makeText(this, R.string.library_save_failed, Toast.LENGTH_LONG).show();
         });
         // Some firmware has no App info page at all; a row that only toasts "can't open" helps nobody.
-        Intent info = SystemSettings.appInfo(this, pkg);
+        if (group) {
+            String groupName = adapter.groupNameAt(position);
+            addSettingsMenuRow(rows, popup, R.string.group_delete, () -> {
+                if (Groups.delete(this, groupName)) reloadApps(false);
+                else Toast.makeText(this, R.string.library_save_failed, Toast.LENGTH_LONG).show();
+            });
+        } else {
+            addSettingsMenuRow(rows, popup, R.string.group_add, () -> showAddToGroupDialog(pkg));
+        }
+        Intent info = group ? null : SystemSettings.appInfo(this, pkg);
         if (info != null) addSettingsMenuRow(rows, popup, R.string.library_app_info, () -> open(info));
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (200 * density), panel.getMeasuredWidth()));
@@ -3781,6 +3791,73 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
         }
         rows.getChildAt(0).requestFocus();
+    }
+
+    /** A group tile was opened: its apps in a list, with a way to take one out. */
+    @Override
+    public void onGroupRequested(String name) {
+        java.util.List<AppAdapter.Entry> members = adapter.membersOf(name);
+        if (members.isEmpty()) {
+            Toast.makeText(this, R.string.group_empty, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] labels = new String[members.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = members.get(i).label;
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(name)
+                .setItems(labels, (d, which) -> adapter.open(members.get(which)))
+                .setNeutralButton(R.string.group_take_out, (d, w) -> showTakeOutDialog(name, members))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showTakeOutDialog(String group, java.util.List<AppAdapter.Entry> members) {
+        String[] labels = new String[members.size()];
+        for (int i = 0; i < labels.length; i++) labels[i] = members.get(i).label;
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.group_take_out)
+                .setItems(labels, (d, which) -> {
+                    if (Groups.removeApp(this, group, members.get(which).pkg)) reloadApps(false);
+                    else Toast.makeText(this, R.string.library_save_failed, Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Hold OK on an app, Add to a group: an existing group, or a new one named on the spot. */
+    private void showAddToGroupDialog(String pkg) {
+        java.util.List<String> names = new java.util.ArrayList<>(Groups.load(this).keySet());
+        String[] items = new String[names.size() + 1];
+        for (int i = 0; i < names.size(); i++) items[i] = names.get(i);
+        items[names.size()] = getString(R.string.group_new);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.group_add)
+                .setItems(items, (d, which) -> {
+                    if (which < names.size()) addToGroup(names.get(which), pkg);
+                    else showNewGroupDialog(pkg);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showNewGroupDialog(String pkg) {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setHint(R.string.group_name_hint);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.group_new)
+                .setView(input)
+                .setPositiveButton(R.string.group_create, (d, w) -> {
+                    String name = Groups.cleanName(input.getText());
+                    if (!name.isEmpty()) addToGroup(name, pkg);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void addToGroup(String group, String pkg) {
+        if (Groups.addApp(this, group, pkg)) reloadApps(false);
+        else Toast.makeText(this, R.string.library_save_failed, Toast.LENGTH_LONG).show();
     }
 
     private void addSettingsMenuRow(LinearLayout rows, PopupWindow popup, int title, Runnable action) {
