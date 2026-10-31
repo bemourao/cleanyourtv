@@ -299,7 +299,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             Drawable banner = null;
             // uniform_tiles draws the icon, so an app's banner is never loaded. A module card keeps its banner.
             if (!(uniformTiles && card == null)) {
-                banner = bundledBanner(appBanners.get(pkg));
+                banner = customIcon(pkg);
+                if (banner == null) banner = bundledBanner(appBanners.get(pkg));
                 if (banner == null) banner = iconTiles.contains(pkg) ? iconBanner(ri.loadIcon(pm)) : loadBanner(pm, ri);
             }
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
@@ -354,6 +355,37 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         icon.setBounds((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2);
         icon.draw(canvas);
         return new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
+    }
+
+    /**
+     * The owner's own tile art: icons/&lt;package&gt;.png, .jpg or .webp in the launcher's files folder (Config.dir),
+     * pushed over ADB. A 16:9-ish picture is the tile; a square one is centred on a dark card like icon_tiles.
+     * Decoded down to about 640x360 so a large file cannot cost memory. Null when there is no such file.
+     */
+    private Drawable customIcon(String pkg) {
+        java.io.File base = Config.dir(ctx);
+        if (base == null) return null;
+        java.io.File dir = new java.io.File(base, "icons");
+        for (String ext : new String[] {".png", ".jpg", ".webp"}) {
+            java.io.File f = new java.io.File(dir, pkg + ext);
+            if (!f.isFile()) continue;
+            try {
+                android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeFile(f.getPath(), bounds);
+                int sample = 1;
+                while (bounds.outWidth / (sample * 2) >= 640 && bounds.outHeight / (sample * 2) >= 360) sample *= 2;
+                android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+                opts.inSampleSize = sample;
+                Bitmap bmp = android.graphics.BitmapFactory.decodeFile(f.getPath(), opts);
+                if (bmp == null) continue;
+                Drawable d = new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
+                return isBannerShaped(bmp.getWidth(), bmp.getHeight()) ? d : iconBanner(d);
+            } catch (RuntimeException | OutOfMemoryError ignored) {
+                // A bad file just means the app keeps its own art.
+            }
+        }
+        return null;
     }
 
     /** A banner_* drawable bundled with the launcher, or null for none or a name that is not one. */
