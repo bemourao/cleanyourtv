@@ -41,6 +41,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView openOnStartChoice;
     private TextView screensaverChoice;
     private TextView sleepChoice;
+    private TextView fontChoice;
+    private TextView colorChoice;
     /** Minutes offered for the screen saver (Android's screen_off_timeout) and for turning the box off (sleep_timeout; 0 = never). */
     private static final int[] SAVER_MINUTES = {1, 2, 3, 5, 10, 15, 30};
     private static final int[] SLEEP_MINUTES = {15, 30, 60, 90, 120, 180, 240, 0};
@@ -161,10 +163,16 @@ public final class LauncherSettingsActivity extends Activity {
         screensaverChoice.setOnClickListener(v -> showTimerPicker(false));
         sleepChoice = findViewById(R.id.sleepChoice);
         sleepChoice.setOnClickListener(v -> showTimerPicker(true));
+        fontChoice = findViewById(R.id.fontChoice);
+        fontChoice.setOnClickListener(v -> showStylePicker(true));
+        colorChoice = findViewById(R.id.colorChoice);
+        colorChoice.setOnClickListener(v -> showStylePicker(false));
+        // Font only here: the settings page keeps its own colours so it stays readable whatever was picked.
+        UiStyle.load(this).apply(findViewById(android.R.id.content), false);
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
-            choices.edit().remove("columns").remove(Config.ROWS_BELOW_DOCK_KEY).remove("animations")
+            choices.edit().remove(UiStyle.FONT_KEY).remove(UiStyle.COLOR_KEY).remove("columns").remove(Config.ROWS_BELOW_DOCK_KEY).remove("animations")
                     .remove("advanced_effects").remove(Config.WALLPAPER_CHOICE_KEY)
                     .remove(Config.DOCK_OPACITY_KEY).remove(Config.CLOCK_FORMAT_KEY).remove(OpenOnStart.KEY).commit();
             Config current = Config.load(this);
@@ -330,6 +338,8 @@ public final class LauncherSettingsActivity extends Activity {
         openOnStartChoice.setText(getString(R.string.open_on_start_state, openOnStartLabel()));
         screensaverChoice.setText(getString(R.string.screensaver_state, minutesLabel(savedMinutes(false))));
         sleepChoice.setText(getString(R.string.sleep_state, minutesLabel(savedMinutes(true))));
+        fontChoice.setText(getString(R.string.font_state, styleLabel(true)));
+        colorChoice.setText(getString(R.string.color_state, styleLabel(false)));
         followThemeChoice.setSelected(!hasOnTvChoices());
     }
 
@@ -337,7 +347,36 @@ public final class LauncherSettingsActivity extends Activity {
         return choices.contains("columns") || choices.contains(Config.ROWS_BELOW_DOCK_KEY)
                 || choices.contains("animations") || choices.contains("advanced_effects")
                 || choices.contains(Config.WALLPAPER_CHOICE_KEY) || choices.contains(Config.DOCK_OPACITY_KEY)
-                || choices.contains(Config.CLOCK_FORMAT_KEY) || choices.contains(OpenOnStart.KEY);
+                || choices.contains(Config.CLOCK_FORMAT_KEY) || choices.contains(OpenOnStart.KEY)
+                || choices.contains(UiStyle.FONT_KEY) || choices.contains(UiStyle.COLOR_KEY);
+    }
+
+    /** The font (bundled Google Fonts, OFL) or the text colour for Home. Saved at once; Home rebuilds when it resumes. */
+    private void showStylePicker(boolean font) {
+        String[] ids = font ? UiStyle.FONT_IDS : UiStyle.COLOR_IDS;
+        String[] labels = new String[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            labels[i] = font ? (i == 0 ? "Outfit" : UiStyle.FONT_NAMES[i]) : getString(UiStyle.COLOR_LABELS[i]);
+        }
+        String key = font ? UiStyle.FONT_KEY : UiStyle.COLOR_KEY;
+        int checked = UiStyle.indexOf(ids, choices.getString(key, "default"));
+        new AlertDialog.Builder(this)
+                .setTitle(font ? R.string.font_title : R.string.color_title)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    if (which == 0) choices.edit().remove(key).apply();
+                    else choices.edit().putString(key, ids[which]).apply();
+                    changed();
+                    refresh();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private String styleLabel(boolean font) {
+        String[] ids = font ? UiStyle.FONT_IDS : UiStyle.COLOR_IDS;
+        int i = UiStyle.indexOf(ids, choices.getString(font ? UiStyle.FONT_KEY : UiStyle.COLOR_KEY, "default"));
+        return font ? UiStyle.FONT_NAMES[i] : getString(UiStyle.COLOR_LABELS[i]);
     }
 
     private int savedMinutes(boolean sleep) {

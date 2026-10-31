@@ -127,6 +127,16 @@
     <string name="sleep_state">Desligar o aparelho após: %1$s</string>
     <string name="screensaver_title">Protetor de tela após</string>
     <string name="sleep_title">Desligar o aparelho após</string>
+    <string name="font_state">Fonte: %1$s</string>
+    <string name="font_title">Fonte</string>
+    <string name="color_state">Cor do texto: %1$s</string>
+    <string name="color_title">Cor do texto</string>
+    <string name="color_white">Branco (original)</string>
+    <string name="color_amber">Âmbar</string>
+    <string name="color_cyan">Ciano</string>
+    <string name="color_green">Verde</string>
+    <string name="color_pink">Rosa</string>
+    <string name="color_violet">Violeta</string>
     <string name="minutes_fmt">%1$d min</string>
     <string name="hours_fmt">%1$d h</string>
     <string name="never">Nunca</string>
